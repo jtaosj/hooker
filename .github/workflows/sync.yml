@@ -20,6 +20,7 @@ jobs:
       with:
         # 使用你的默认分支
         ref: master
+        fetch-depth: 0 # 必须改为 0，获取完整历史
         # 推荐添加 token 以获得推送权限
         token: ${{ secrets.GITHUB_TOKEN }}
 
