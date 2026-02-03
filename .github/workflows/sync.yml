@@ -34,7 +34,7 @@ jobs:
     - name: Add upstream remote
       run: |
         # 添加上游仓库地址
-        git remote add upstream https://github.com/EasyTier/EasyTier.git
+        git remote add upstream https://github.com/CreditTone/hooker.git
         #以此拉取上游所有分支信息
         git fetch upstream
 
