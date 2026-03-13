@@ -1051,15 +1051,18 @@ def print_view(viewId):
         detach(online_session, online_script)
 
 def rpc_start_web_server(dex_file, all_class):
+    global webserver_url
     online_session = None
     online_script = None
     try:
         online_session, online_script = attach_rpc();
         text = online_script.exports_sync.starthttpserver(dex_file, ",".join(all_class))
         info(text)
-        m = re.search("http:[^s]+", text)
+        m = re.search("http:[^s]+:[\d]+", text)
         if m:
             webserver_url = m.group(0)
+        else:
+            info("找不到webserver" + text)
     except Exception:
         print(traceback.format_exc())
     finally:
@@ -1779,7 +1782,9 @@ def push_file_to_device_with_chmod(local_file, remote_file = None):
     info(f"push file OK {remote_file}")
     return remote_file
 
-def start_web_server(jar_file:str = None):
+def start_web_server(jar_file:str = "", with_xposed_daemon = False):
+    remote_dex_file = ""
+    all_classes = []
     if jar_file:
         dex_file = convert_jar_to_dex(jar_file)
         with open(f"{current_identifier}/{dex_file}", "rb") as f:
@@ -1796,13 +1801,28 @@ def start_web_server(jar_file:str = None):
         if len(all_classes) == 0:
             warn(f"Deploy failure. not found any class in {jar_file}")
             return
-        remote_file = push_file_to_device_with_chmod(dex_file)
-        rpc_start_web_server(remote_file, all_classes)
-    else:
-        rpc_start_web_server("", [])
+        remote_dex_file = push_file_to_device_with_chmod(dex_file)
+    rpc_start_web_server(remote_dex_file, all_classes)
+    if with_xposed_daemon:
+        if not check_remote_dir_exists("/data/local/tmp/hooker_server_conf"):
+            run_su_command("mkdir /data/local/tmp/hooker_server_conf && chmod 755 /data/local/tmp/hooker_server_conf")
+        config = (
+            "hooker_server {\n"
+            f"   controller_dex = {remote_dex_file};\n"
+            f"   controller_class = {','.join(all_classes)};\n"
+            "}"
+        )
+        adb_device.shell(f"rm -f /data/local/tmp/hooker_server_conf/{current_identifier}.conf")
+        adb_device.shell(f"echo '{config}' > /data/local/tmp/hooker_server_conf/{current_identifier}.conf")
+        if not check_remote_file_exists("/data/local/tmp/daemon_app.sh"):
+            push_file_to_remote("mobile-deploy/daemon_app.sh", "/data/local/tmp/daemon_app.sh")
+            run_su_command("chmod 755 /data/local/tmp/daemon_app.sh")
+        run_su_command("pkill daemon_app")
+        run_su_command(f"nohup /data/local/tmp/daemon_app.sh {current_identifier} > /data/local/tmp/daemon_{current_identifier}.log 2>&1 &")
 
 def stop_web_server():
-    result = adb_device.shell(f"curl --max-time 3 {webserver_url}/stop")
+    cmd = "curl --max-time 3 " + webserver_url + "/stop"
+    result = adb_device.shell(cmd)
     info(result)
 
 def tail_android_file(filepath: str):
@@ -1896,6 +1916,7 @@ class ClassNameCompleter(Completer):
             'pull': None,
             'webserver': {
                 "start": jar_files,
+                "start_with_xposed_daemon": jar_files,
                 "stop": None,
             },
             'viewlog': viewlog,
@@ -1926,6 +1947,7 @@ class ClassNameCompleter(Completer):
         self.nested_dict["push"] = pushable_files
         self.nested_dict["webserver"] = {
             "start": jar_files,
+            "start_with_xposed_daemon": jar_files,
             "stop": None,
         }
         self.debug_completer = NestedCompleter.from_nested_dict(self.nested_dict)
@@ -2026,13 +2048,21 @@ def entry_debug_mode():
                 else:
                     push_file_to_device_with_chmod(local_file)
             return True
-        elif re.search(r"webserver\s+start", cmd):
+        elif re.search(r"webserver\s+start\s+", cmd):
             m = re.search(r"webserver\s+start\s+([^\s]+\.jar)", cmd)
             if m:
                 jar_file = m.group(1)
                 start_web_server(jar_file)
             else:
                 start_web_server()
+            return True
+        elif re.search(r"webserver\s+start_with_xposed_daemon", cmd):
+            m = re.search(r"webserver\s+start_with_xposed_daemon\s+([^\s]+\.jar)", cmd)
+            if m:
+                jar_file = m.group(1)
+                start_web_server(jar_file, True)
+            else:
+                start_web_server("", True)
             return True
         elif re.search(r"webserver\s+stop", cmd):
             m = re.search(r"webserver\s+stop\s+([^\d]+)", cmd)
