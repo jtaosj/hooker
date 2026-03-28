@@ -21,10 +21,9 @@ hooker是一个基于frida实现的逆向工具包。旨在为安卓逆向开发
 
 为什么你需要hooker？
 =================
-* [1. frida版JustTrustMe，通杀全网APP，且作者一直在持续维护升级](#11-frida版JustTrustMe包括boringgssl)
-* [2. 自动化生成frida脚本，1秒钟生成一个脚本，脚本备注详细可扩展性强](#7-自动化生成frida脚本)
-* [3. 快捷设置socks5代理，无需额外安装socksdroid等三方app实现无感知代理](#10-快捷设置socks5无感代理)
-* [4. 整个使用过程非常舒适的命令行提示，让你享受逆向的过程](#7-自动化生成frida脚本)
+* [1. frida版JustTrustMe，通杀全网APP，且作者一直在持续维护升级](#12-frida版JustTrustMe包括boringgssl)
+* [2. 嵌入式webserver支持把App内部能力快速暴露成HTTP接口，便于做自动化和接口化](#7-嵌入式webserver)
+* [3. 快捷设置socks5代理，无需额外安装socksdroid等三方app实现无感知代理](#11-快捷设置socks5无感代理)
 
 <img src="https://raw.githubusercontent.com/CreditTone/img_resources/main/gs_show.jpg" width="1000">
 
@@ -41,19 +40,19 @@ hooker是一个基于frida实现的逆向工具包。旨在为安卓逆向开发
     * [4. 启动hooker](#4-启动hooker)
     * [5. 输入调试应用包名](#5-输入调试应用包名)
     * [6. 查看help信息](#6-查看help信息)
-    * [7. 自动化生成frida脚本](#7-自动化生成frida脚本)
-    * [8. 列出所有frida脚本](#8-列出应用目录所有frida脚本)
-    * [9. attach执行frida脚本](#9-attach执行frida脚本)
-    * [10. 快捷设置socks5无感代理](#10-快捷设置socks5无感代理)
-    * [11. frida版JustTrustMe](#11-frida版JustTrustMe包括boringgssl)
-    * [12. spawn执行frida脚本](#12-spawn执行frida脚本)
-    * [13. 取消代理设置](#13-取消代理设置)
-    * [14. 重启app](#14-重启app)
-    * [15. 获取uid和pid](#15-获取uid和pid)
-    * [16. pull文件](#16-pull文件)
-    * [17. r0capture](#16-r0capture)
-    * [18. hooker自动升级](#17-upgrade)
-* [启动hooker webserver](#启动hooker-webserver)
+    * [7. 嵌入式webserver](#7-嵌入式webserver)
+    * [8. 自动化生成frida脚本](#8-自动化生成frida脚本)
+    * [9. 列出所有frida脚本](#9-列出应用目录所有frida脚本)
+    * [10. attach执行frida脚本](#10-attach执行frida脚本)
+    * [11. 快捷设置socks5无感代理](#11-快捷设置socks5无感代理)
+    * [12. frida版JustTrustMe](#12-frida版JustTrustMe包括boringgssl)
+    * [13. spawn执行frida脚本](#13-spawn执行frida脚本)
+    * [14. 取消代理设置](#14-取消代理设置)
+    * [15. 重启app](#15-重启app)
+    * [16. 获取uid和pid](#16-获取uid和pid)
+    * [17. pull文件](#17-pull文件)
+    * [18. r0capture](#18-r0capture)
+    * [19. hooker自动升级](#19-upgrade)
 * [开发手机API接口](#开发手机api接口)
 * [hooker原生提供的操作API](#hooker原生提供的操作api)
 * [应用工作目录脚本](#应用工作目录脚本)
@@ -246,164 +245,85 @@ exit                                         return to the previous level
 
 
 
-# 启动hooker webserver
+### 7. 嵌入式webserver
 
-这里预留给后续补充 `hooker webserver` 的启动方式、部署方式和访问方法。
+hooker 支持在手机中注入一个轻量级 webserver。启动后会在目标 App 进程内开启一个 HTTP 服务，默认端口是 `8080`。这个服务既可以暴露 patch 项目里自定义的 controller，也会自动挂载一组内置调试接口。
 
-TODO: 这里由作者补充。
+- 启动内置 webserver
 
-***
+```shell
+某音火山版 > webserver start
+Http server port: 8080
+Http server: http://10.112.101.249:8080
+```
 
-# 开发手机API接口
+启动内置 webserver 后，浏览器打开首页即可看到当前已注册的 API 列表。常用能力包括：
 
-如果你希望把某个 App 的页面能力、业务能力或内置网络能力封装成可远程调用的 HTTP API，推荐单独创建 patch 工程来开发，而不是把具体 App 逻辑直接写进 `hooker` 主仓库。
+- 服务管理：`/` 查看欢迎页和接口清单，`/stop` 停止当前 webserver。
+- UI 自动化：`/hooker/ui/...` 提供点击控件、按文本点击、按坐标点击、设置输入框文本、触发返回/Home、启动 Activity、获取屏幕信息、翻页、滚动 RecyclerView、尝试关闭弹窗等能力，适合做半自动化操作和页面联调。
+- 页面结构导出：`/hooker/uiauto/dump`、`/hooker/uiauto/window_dump.xml`、`/hooker/uiauto/window_dump.json` 可以导出当前窗口层级，方便定位控件和分析页面结构。
+- 截图能力：`/hooker/screencap/screenshot` 可直接调用系统 `screencap` 截图；`/hooker/mediaprojection/...` 支持申请 MediaProjection 权限并抓取整屏 PNG，更适合做远程观察和自动化闭环。
+- App 信息读取：`/hooker/appinfo` 可读取包名、版本、组件、权限、签名和目录信息；`/hooker/appinfo/shared_prefs`、`/hooker/appinfo/databases`、`/hooker/appinfo/read_table` 可以直接查看 `shared_prefs`、数据库结构和表数据。
+- 类/对象辅助调用：`/hooker/classhelper/invoke_static_method`、`/hooker/classhelper/invoke_method` 支持通过 HTTP 直接调用静态方法或已缓存对象的方法，便于快速验证算法、补环境或调试业务逻辑。
+- 文件回传：`/file?filename=...` 可以把绝对路径文件或 webserver 缓存目录里的文件直接通过 HTTP 返回。
+- MCP 风格 UI 工具：`/hooker/mcp/ui/tools` 和 `/hooker/mcp/ui/call` 把常用 UI 操作封装成统一工具接口，便于外部脚本或 Agent 通过 HTTP 驱动当前 App。
 
-当前可以参考这些工程：
 
-- `/Users/stephen256/eclipse-workspace2/gifshow-patch`
-- `/Users/stephen256/eclipse-workspace2/douyin-huozhan-34.1.0`
-- `/Users/stephen256/eclipse-workspace2/taobao-10.59.10-patch`
+- 7.1 启动自定义 webserver
 
-从这几个工程里可以总结出一套比较稳定的开发方式。
+给定一个patch工程的jar包，将爬虫接口启动为webserver。
 
-### 1. 每个 App 单独建一个 patch 工程
+```shell
+某宝 > webserver start taxbax-patch.jar
+Converting taxbax-patch.jar to taxbax-patch.dex...
+Successfully converted to taxbax-patch.dex (7160 bytes)
+push file OK /data/user/0/com.taxbax.taxbax/hooker_server.dex
+Http server port: 2026
+Http server: http://10.112.101.249:2026
+```
 
-共同点很明显：
+这里的 `taxbax-patch.jar` 可以理解成“运行在目标 App 进程里的业务插件”。`hooker` 会先把 jar 转成 dex，再注入到目标进程中，扫描其中带注解的类，然后把这些类注册成 HTTP 路由。
 
-- 都是老式 `src + libs` 的 Java 工程
-- `libs/` 里放目标 App 的 dex2jar 依赖和 `xradar.jar`
-- `src/` 里只放少量你自己写的 controller 代码
-- 一个工程只服务一个 App 或一个版本段，避免互相污染
+- 7.2 自定义 webserver 适合做这类事情：
 
-这样做的好处是：
+- 暴露目标 App 内部已经存在的业务能力，比如搜索、评论、详情页、签名、加解密、用户资料、直播接口等。
+- 直接复用目标 App 自己的登录态、网络栈、环境参数和对象实例，避免在外部重复补协议。
+- 把异步回调、Observable、Listener、页面对象调用收敛成一个同步 HTTP 接口，对外统一返回 JSON 或文本。
 
-- 依赖隔离，定位类更直接
-- 针对具体 App 升级时更容易维护
-- 不会把业务 API 和 `hooker` 通用能力混在一起
+你可以像开发springboot一样优雅的开发嵌入式的httpserver，并调用目标app的任何java代码而无需像有些xposed插件一样TMD的反射、反射、再反射，跟SB一样😊
 
-### 2. 用 Controller 暴露 HTTP 接口
+- 用 `@HookerWebServerConfiguration(port = 2026)` 指定端口，不写时默认走 `8080`。
+- 用 `@HookerController("/taobao")`、`@HookerController("/douyin")` 这类注解定义业务前缀。
+- 用 `@HookerRequestMapping(path = "/getProductDetail")` 之类的注解暴露具体接口。
+- 用 `@HookerRequestParam`、`@HookerRequestPostJson` 接收查询参数和 POST JSON。
 
-这三个工程都采用同一种组织方式：
 
-- 用 `@HookerWebServerConfiguration(port = 2026)` 指定端口
-- 用 `@HookerController("/xxx")` 定义业务前缀
-- 用 `@HookerRequestMapping(path = "/xxx")` 暴露接口
-- 用 `@HookerRequestParam` 接收查询参数
+具体开发文档，将在https://github.com/CreditTone/radar4hooker详细介绍
 
-也就是说，patch 工程的核心不是写 Frida 脚本，而是写“运行在目标进程里的业务 Controller”。
 
-### 3. 优先复用目标 App 自己的能力
+- 7.3 webserver 持久化
 
-这几个 patch 工程最重要的共同点是：它们不是自己重新造请求，而是尽量直接调用目标 App 内部已经存在的对象、API、Presenter、网络层或页面能力。
+如果你已经为某个 App 开发好了 patch 工程，并且需要在多台设备上长期部署，那么 `frida + hooker` 的临时注入方式会比较重。针对这种场景，作者提供了 Xposed 插件 `HookerServer`：
 
-例如：
+`https://github.com/CreditTone/HookerServer`
 
-- `gifshow-patch` 直接调用快手内部 API / RxJava Observable
-- `douyin-huozhan-34.1.0` 直接调用抖音内部的 Profile、Search、Comment 能力
-- `taobao-10.59.10-patch` 直接走淘宝详情页内部请求链路
+只要手机支持 Xposed/LSPosed，就可以借助这个插件把 webserver 持久化到目标 App 中。
 
-这类开发方式比“自己抓包重写协议”更稳，因为：
+操作步骤：
 
-- 登录态、签名、环境参数通常已经在 App 内部准备好了
-- 目标 App 升级后，只需要修补调用路径，不必重造整套协议
-- 你用的是 App 自己的网络栈和页面对象，更接近真实行为
+1. 从 `https://github.com/CreditTone/HookerServer/releases` 下载最新 APK。
+2. 把 `patch.dex` 推送到 `/data/user/0/{package}/hooker_server.dex`。
+3. 在 Xposed/LSPosed 中启用 `HookerServer`，并勾选目标 App。
+4. 重启 App，webserver 即可自动启动。
 
-### 4. 异步结果统一转同步返回
+其中 `patch.dex` 可以在第一次部署 `patch.jar` 后获得，hooker 会自动完成 jar 转 dex，并把生成结果放到目标应用的工作目录中。
 
-三个工程都用了相似套路把异步回调结果变成 HTTP 同步返回：
-
-- `CountDownLatch`
-- `AtomicReference`
-- 在回调里 `set(result)` 然后 `countDown()`
-- 接口线程里 `await()` 后再返回 JSON
-
-这基本可以作为 patch 接口的标准模板。
-
-适用场景：
-
-- RxJava Observable
-- Kotlin Continuation / Future
-- Task / Callback / Listener
-- 页面异步加载结果
-
-### 5. 先跑通最小接口，再逐步补参数
-
-这三个工程还有一个共同开发习惯：
-
-- 先把最小可调用链路打通
-- 再逐步补真实参数、埋点参数、分页参数、上下文参数
-
-尤其像搜索、评论、详情这种接口，很多字段一开始可以先写死或从真实请求抄一份，等确认可用后再抽成参数。
-
-这比一开始就追求“参数完美抽象”更高效。
-
-### 6. 开发手机 API 的推荐顺序
-
-推荐按下面顺序开发：
-
-1. 先用 `hooker` 自带能力确认页面、类、对象、控件和入口
-2. 建一个独立 patch 工程，把目标 App 的 dex2jar 和 `xradar.jar` 放进 `libs/`
-3. 写一个最小 `Controller`，先暴露一个能返回固定结果的测试接口
-4. 再把目标 App 的内部对象或内部网络能力接进来
-5. 用 `CountDownLatch + AtomicReference` 把异步结果收敛成同步 HTTP 返回
-6. 最后再补分页、搜索词、用户 id、aweme_id、itemId 等业务参数
-
-### 7. 哪些能力适合做成手机 API
-
-从这几个工程和当前 `radar4hooker` 的实践看，下面这些最适合抽象成手机 API：
-
-- 用户资料、评论、搜索建议、搜索结果、详情页数据
-- 当前页面 inspect
-- 查找视频播放控件、翻页容器、输入框、按钮
-- 点击 `TextView`、`ImageView`、按钮
-- 给 `EditText` 填值并触发搜索
-- 针对短视频 App 封装上下滑、切 Tab、打开评论区
-- 针对电商 App 封装详情打开、SKU 读取、商品信息抓取
-
-### 8. 什么时候写进 hooker，什么时候单独做 patch
-
-建议规则很简单：
-
-写进 `hooker` 主仓库的内容：
-
-- 通用能力
-- 跟具体 App 无关的操作
-- inspect、click、set_text、classhelper 这类基础设施
-
-写进独立 patch 工程的内容：
-
-- 具体 App 的页面逻辑
-- 具体 App 的内部类调用
-- 具体 App 的搜索、评论、详情、翻页等业务动作
-- 高度依赖某个版本号的实现
-
-这样维护成本最低。
 
 ***
 
-# hooker原生提供的操作API
 
-除了 patch 工程里自定义的业务 API，`hooker` 本身已经提供了一批通用操作能力，这些能力更适合作为调试基础设施和开发手机 API 的前置工具。
 
-典型能力包括：
-
-- 查看 Activity / Service 栈
-- 查看对象信息和 View 信息
-- inspect 当前页面控件
-- 自动生成 Frida Hook 脚本
-- attach / spawn 执行脚本
-- 快速启用 SSL Unpinning
-- 快速设置代理、取消代理、重启 App
-- 获取 PID / UID、pull 文件
-
-实际工作流通常是：
-
-- 先用 `hooker` 原生能力探路
-- 再把稳定、可复用的动作沉淀到 patch 工程的 HTTP API 中
-
-***
-
-### 7. 自动化生成frida脚本
+### 8. 自动化生成frida脚本
 自动化生成脚本是hooker的杀器。虽然现在AI大模型也可以写，但是我们离内存近，更快，也不需要联网。生成的脚本自带打印堆栈等信息，和一些你可能需要的扩展方法。
 另外在生成脚本的过程中，命令行类名、方法名提示也可以当作搜索使用，能通过关键词快速搜索定位类方法。hooker搜索类比jadx快很多，不信就试试......
 
@@ -411,7 +331,7 @@ TODO: 这里由作者补充。
 - Command语法：gs, generatescript [class_name:method_name]
 
 
-- 7.1 生成指定方法的frida hook脚本：
+- 8.1 生成指定方法的frida hook脚本：
 gs okhttp3.Request$Builder:addHeader，参数部分(String, String)不是必须写的
 
 ```shell
@@ -441,7 +361,7 @@ Java.perform(function() {
 
 
 
-- 7.2 生成指定类的所有成员方法的frida hook脚本：
+- 8.2 生成指定类的所有成员方法的frida hook脚本：
 gs okhttp3.Request$Builder
 
 ```shell
@@ -570,7 +490,7 @@ Java.perform(function() {
 
 
 
-- 7.3 生成指定类的构造方法的frida hook脚本：
+- 8.3 生成指定类的构造方法的frida hook脚本：
 gs okhttp3.Request$Builder:_ 或者gs okhttp3.Request$Builder:\<init\>
 
 ```shell
@@ -609,7 +529,7 @@ Java.perform(function() {
 
 
 
-### 8. 列出应用目录所有frida脚本
+### 9. 列出应用目录所有frida脚本
 
 - 查看应用目录下所有的脚本，这里有hooker给你生成的通杀脚本，也有您生成的指定hook脚本，您可以修改定制。
 
@@ -629,7 +549,7 @@ just_trust_me_okhttp_hook_finder_for_android.js  text_view.js                   
 ```
 ***
 
-### 9. attach执行frida脚本
+### 10. attach执行frida脚本
 
 在hooker下执行frida脚本，您只需要输入attach【空格】脚本名称会自动弹出提示。上下选择需要的脚本按tab键即可自动输入全名称。
 这是hooker在追求极致的工匠精神，帮助您从开波音737到开空客320的跳跃。
@@ -699,11 +619,11 @@ com.android.okhttp.Request.Builder.build()
 ```
 ***
 
-### 10. 快捷设置socks5无感代理
+### 11. 快捷设置socks5无感代理
 
-通过iptables链路层转发包实现一键设置代理，优势是APP完全无感知被代理。推荐使用charles的socks5性能更高。
+通过iptables链路层转发包实现一键设置代理，优势是APP完全无感知被代理。推荐使用charles的socks5
 
-设置代理后必须主动去[关闭代理](#13-取消代理设置)，代理不会自动取消
+设置代理后必须主动去[关闭代理](#14-取消代理设置)，代理不会自动取消
 
 
 ```shell
@@ -714,7 +634,7 @@ proxy socks5://10.112.99.11:9998 OK
 ***
 
 
-### 11. frida版JustTrustMe（包括boringgssl）
+### 12. frida版JustTrustMe（包括boringgssl）
 
 关掉SSL证书校验
 
@@ -758,7 +678,7 @@ okhttp3.CertificatePinner.check('java.lang.String', 'java.util.List') was hooked
 ***
 
 
-### 12. spawn执行frida脚本
+### 13. spawn执行frida脚本
 ```shell
 某信拍 > spawn just_trust_me.js
 Package name: com.xxx.buyxxphone
@@ -770,7 +690,7 @@ javax.net.ssl.SSLContext.init('[Ljavax.net.ssl.KeyManager;', '[Ljavax.net.ssl.Tr
 ***
 
 
-### 13. 取消代理设置
+### 14. 取消代理设置
 
 一键取消代理
 
@@ -783,7 +703,7 @@ unproxy OK
 
 
 
-### 14. 重启app
+### 15. 重启app
 
 
 ```shell
@@ -793,7 +713,7 @@ restarts com.xxx.buyxxphone
 ***
 
 
-### 15. 获取uid和pid
+### 16. 获取uid和pid
 
 ```shell
 某信拍 > uid
@@ -804,7 +724,7 @@ restarts com.xxx.buyxxphone
 ***
 
 
-### 16. pull文件
+### 17. pull文件
 
 快捷拉取文件到本地应用工作目录
 
@@ -821,7 +741,7 @@ pull /data/app/com.xxx.zhuanmou-o1ZYFILxnOCIpvvqJQKrpQ==/lib/arm64/libweconvert.
 
 
 
-### 17. r0capture
+### 18. r0capture
 hooker集成了r0capture，抓包产生的pcap文件保存在{应用包名}/r0capture_ssl.pcap路径下，如酷安：com.coolapk.market/r0capture_ssl.pcap
 
 ```shell
@@ -857,7 +777,7 @@ Restarting 酷安 Please wait for a few seconds
 ***
 
 
-### 18. upgrade
+### 19. upgrade
 
 hooker更新频繁，平均周更约10次。upgrade帮助您随时同步最新代码和相关文件到本地。
 
