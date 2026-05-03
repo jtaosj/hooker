@@ -32,6 +32,7 @@ import queue
 import sqlite3
 import itertools
 import jsbeautifier
+import logging
 import subprocess
 import filecmp
 import argparse
@@ -392,9 +393,6 @@ if not is_frida_working_via_attach():
     if not ensure_root():
         info("❌ Cannot deploy frida-server automatically. Please start frida-server manually and try again.")
         sys.exit(2)
-    elif is_magisk_root:
-        info("❌ Cannot deploy frida-server automatically on the Magisk devices. Please start frida-server manually and try again.")
-        sys.exit(2)
     frida_server_file = choose_frida_server()
     remote_frida_server_file = f"/data/mobile-deploy/{frida_server_file}"
     if not check_remote_dir_exists("/data/mobile-deploy/"):
@@ -404,7 +402,7 @@ if not is_frida_working_via_attach():
         run_su_command(f"mv /sdcard/{frida_server_file} {remote_frida_server_file}")
         run_su_command(f"chmod +x {remote_frida_server_file}")
     run_su_command("setenforce 0")
-    run_su_command(f"cd /data/mobile-deploy/ && ./{choose_frida_server()} > /sdcard/f_server.log 2>&1 &", True)
+    run_su_command(f"/data/mobile-deploy/{choose_frida_server()} -D > /sdcard/f_server.log 2>&1", True)
     success = False
     for index in range(20):
         if is_frida_working_via_attach():
@@ -1614,6 +1612,7 @@ def query_class_name_by_prefix(class_name_prefix, class_name, limit=15):
 def get_need_to_cache_pkg_prefix():
     results = {"okhttp3", "retrofit2", "javax.crypto", "java.security"}
     try:
+        logging.getLogger("androguard.core.api_specific_resources").setLevel(logging.ERROR)
         a = apk.APK(current_local_apk_path)
         activities = a.get_activities()
         # 取每个activity包名前两段
