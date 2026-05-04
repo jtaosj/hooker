@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/Users/stephen/hooker/.venv/bin/python3
 
 '''
 Created on 2020年3月23日
@@ -619,19 +619,15 @@ def start_app(package_name):
     m = re.search(r"\s+([^\s]+)\s+filter", shell_result)
     if m:
         main_activity = m.group(1)
-        #print(f"am start -n {main_activity}")
         adb_device.shell(f"am start -n {main_activity}")
     else:
         adb_device.shell(f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1")
-    for j in range(100):
+    for j in range(20):
         time.sleep(0.5)
-        if package_name in adb_device.shell("dumpsys activity activities | grep mResumedActivity"):
-            break
-    apps = enumerate_applications_adbutils(third_party_only=True, include_label=True)
-    for app in sorted(apps, key=lambda x: x.pid or 0):
-        if app.pid != 0 and app.identifier == package_name:
-            current_identifier_pid = app.pid
-            return app.pid, app.name
+        out = adb_device.shell(f"pidof {package_name}").strip()
+        if out and out.isdigit():
+            current_identifier_pid = int(out)
+            return current_identifier_pid, current_identifier_name
     return None, None
 
 def restart_app(package_name):
@@ -758,7 +754,7 @@ def compara_and_update_file(local_file, remote_file):
         #info(f"update file {local_filename} to {remote_file}")
         run_su_command(f"cp /sdcard/{local_filename} {remote_file}", True)
         run_su_command(f"chmod 555 {remote_file}", True)
-        
+
 
 def on_message(message, data):
     if message['type'] == 'send':
@@ -1061,7 +1057,7 @@ def rpc_start_web_server(dex_file, all_class):
         online_session, online_script = attach_rpc();
         text = online_script.exports_sync.starthttpserver(dex_file, ",".join(all_class))
         info(text)
-        m = re.search("http:[^s]+:[\d]+", text)
+        m = re.search(r"http:[^s]+:[\d]+", text)
         if m:
             webserver_url = m.group(0)
         else:
@@ -1087,12 +1083,41 @@ def execute_script(script_file, is_spawn=False):
         return
     online_session = None
     online_script = None
+    log_fh = None
+    saved_fd = None
+    pipe_r = None
+    pipe_w = None
+    tee_thread = None
     use_v8 = "just_trust_me.js" in script_file
     try:
+        log_filename = script_file.rsplit('.', 1)[0] + '.log'
+        log_filepath = f"{current_identifier}/{log_filename}"
+        log_fh = open(log_filepath, 'w', encoding='utf-8')
+        # fd 级别重定向，捕获所有 C 层写 stdout 的输出
+        pipe_r, pipe_w = os.pipe()
+        saved_fd = os.dup(1)
+        os.dup2(pipe_w, 1)
+        os.close(pipe_w)
+        pipe_w = None
+        stop_event = threading.Event()
+        def tee_reader():
+            while not stop_event.is_set():
+                try:
+                    data = os.read(pipe_r, 8192)
+                    if not data:
+                        break
+                    os.write(saved_fd, data)
+                    log_fh.write(data.decode('utf-8', errors='replace'))
+                    log_fh.flush()
+                except Exception:
+                    break
+        tee_thread = threading.Thread(target=tee_reader, daemon=True)
+        tee_thread.start()
         if is_spawn:
             online_session, online_script = spawn(f"{current_identifier}/{script_file}", use_v8)
         else:
             online_session, online_script = attach(f"{current_identifier}/{script_file}", use_v8)
+        info(f"Frida output logging -> {log_filepath}")
         while online_session != None:
             try:
                 with patch_stdout():
@@ -1104,9 +1129,19 @@ def execute_script(script_file, is_spawn=False):
                 warn("Exiting...")
                 break
     except Exception:
-        print(traceback.format_exc())  
+        print(traceback.format_exc())
     finally:
         detach(online_session, online_script)
+        # 恢复 fd 1
+        if saved_fd is not None:
+            os.dup2(saved_fd, 1)
+            os.close(saved_fd)
+        if pipe_r is not None:
+            os.close(pipe_r)
+        if tee_thread is not None:
+            stop_event.set()
+        if log_fh is not None:
+            log_fh.close()
         info(f"{script_file} detach successful")
         if is_spawn:
             restart_app(current_identifier)
