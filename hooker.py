@@ -1,4 +1,4 @@
-#!/Users/stephen/hooker/.venv/bin/python3
+#!/usr/bin/env python3
 
 '''
 Created on 2020年3月23日
@@ -266,9 +266,21 @@ def _init_adb_device():
 
 _init_adb_device()
 
+def _shell(cmd, stream=False):
+    return adb_device.shell(cmd, stream=stream)
+
 def run_su_command(cmd, not_read=False):
-    #print("run_su_command:", cmd)
-    conn = adb_device.shell(["su", "-c", cmd], stream=True)
+    try:
+        if not_read:
+            _shell(f"{cmd} > /dev/null 2>&1 &")
+            time.sleep(1)
+            return
+        output = _shell(cmd).strip()
+        if output:
+            return output
+    except Exception:
+        pass
+    conn = _shell(["su", "-c", cmd], stream=True)
     try:
         if not_read:
             time.sleep(1)
@@ -402,7 +414,7 @@ if not is_frida_working_via_attach():
         run_su_command(f"mv /sdcard/{frida_server_file} {remote_frida_server_file}")
         run_su_command(f"chmod +x {remote_frida_server_file}")
     run_su_command("setenforce 0")
-    run_su_command(f"/data/mobile-deploy/{choose_frida_server()} -D > /sdcard/f_server.log 2>&1", True)
+    run_su_command(f"/data/mobile-deploy/{choose_frida_server()} -D > /sdcard/f_server.log 2>&1", False)
     success = False
     for index in range(20):
         if is_frida_working_via_attach():
@@ -1057,7 +1069,7 @@ def rpc_start_web_server(dex_file, all_class):
         online_session, online_script = attach_rpc();
         text = online_script.exports_sync.starthttpserver(dex_file, ",".join(all_class))
         info(text)
-        m = re.search(r"http:[^s]+:[\d]+", text)
+        m = re.search("http:[^s]+:[\d]+", text)
         if m:
             webserver_url = m.group(0)
         else:
