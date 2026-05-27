@@ -745,8 +745,6 @@ def read_local_file(filename):
 def check_dependency_files():
     def process_dex_dependency_files():
         compara_and_update_file("mobile-deploy/radar.dex", "/data/local/tmp/radar.dex")
-        compara_and_update_file("mobile-deploy/libext64.so", f"/data/data/{current_identifier}/files/libext64.so")
-        compara_and_update_file("mobile-deploy/libext.so", f"/data/data/{current_identifier}/files/libext.so")
     t = threading.Thread(target=process_dex_dependency_files)
     t.daemon = True
     t.start()
